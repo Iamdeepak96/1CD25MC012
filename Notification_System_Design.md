@@ -4,37 +4,15 @@
 
 ## Objective
 
-Design REST APIs for a Campus Notification Platform where students receive notifications related to Placements, Events, and Results.
+The notification system should allow students to receive updates related to placements, events, and results. It should also allow administrators to create and manage notifications. Students should receive notifications instantly whenever possible.
 
----
+## Core APIs
 
-## Core Actions
+### 1. Login
 
-- Student Login
-- Fetch Notifications
-- Fetch Unread Notifications
-- Mark Notification as Read
-- Mark All Notifications as Read
-- Create Notification (Admin)
-- Broadcast Notification to All Students
-- Delete Notification
-- Real-time Notification Delivery
+**POST** `/api/auth/login`
 
----
-
-# API Design
-
-## 1. Student Login
-
-**POST** `/api/v1/auth/login`
-
-### Headers
-
-```http
-Content-Type: application/json
-```
-
-### Request
+**Request**
 
 ```json
 {
@@ -43,11 +21,11 @@ Content-Type: application/json
 }
 ```
 
-### Response
+**Response**
 
 ```json
 {
-  "token": "jwt_token",
+  "token": "JWT_TOKEN",
   "studentId": 1042,
   "name": "John Doe"
 }
@@ -55,174 +33,208 @@ Content-Type: application/json
 
 ---
 
-## 2. Get All Notifications
+### 2. Get all notifications
 
-**GET** `/api/v1/notifications`
+**GET** `/api/notifications`
 
-### Headers
+**Headers**
 
-```http
-Authorization: Bearer <JWT>
+```
+Authorization: Bearer <token>
 ```
 
-### Response
+**Response**
 
 ```json
 [
   {
     "notificationId": 1,
     "title": "Placement Drive",
-    "message": "Google hiring for SDE",
+    "message": "Amazon hiring for SDE role",
     "notificationType": "Placement",
     "isRead": false,
-    "createdAt": "2026-06-29T09:00:00Z"
+    "createdAt": "2026-06-29T09:30:00Z"
   }
 ]
 ```
 
 ---
 
-## 3. Get Unread Notifications
+### 3. Get unread notifications
 
-**GET** `/api/v1/notifications/unread`
+**GET** `/api/notifications/unread`
 
-### Headers
-
-```http
-Authorization: Bearer <JWT>
-```
-
-### Response
-
-```json
-[
-  {
-    "notificationId": 3,
-    "title": "Semester Result",
-    "message": "Results have been published.",
-    "notificationType": "Result",
-    "isRead": false
-  }
-]
-```
+Returns only the unread notifications of the logged-in student.
 
 ---
 
-## 4. Mark Notification as Read
+### 4. Mark notification as read
 
-**PATCH** `/api/v1/notifications/{notificationId}/read`
+**PATCH** `/api/notifications/{notificationId}/read`
 
-### Headers
-
-```http
-Authorization: Bearer <JWT>
-```
-
-### Response
+**Response**
 
 ```json
 {
-  "message": "Notification marked as read."
+  "message": "Notification marked as read"
 }
 ```
 
 ---
 
-## 5. Mark All Notifications as Read
+### 5. Mark all notifications as read
 
-**PATCH** `/api/v1/notifications/read-all`
+**PATCH** `/api/notifications/read-all`
 
-### Response
-
-```json
-{
-  "message": "All notifications marked as read."
-}
-```
+Marks every unread notification of the current student as read.
 
 ---
 
-## 6. Create Notification (Admin)
+### 6. Create notification
 
-**POST** `/api/v1/notifications`
+**POST** `/api/notifications`
 
-### Headers
-
-```http
-Authorization: Bearer <JWT>
-Content-Type: application/json
-```
-
-### Request
+**Request**
 
 ```json
 {
-  "title": "Amazon Placement Drive",
-  "message": "Drive starts tomorrow.",
+  "title": "Placement Update",
+  "message": "Microsoft drive starts tomorrow.",
   "notificationType": "Placement",
   "recipientIds": [101,102,103]
 }
 ```
 
-### Response
+---
 
-```json
-{
-  "notificationId": 501,
-  "status": "Created"
-}
-```
+### 7. Notify all students
+
+**POST** `/api/notifications/broadcast`
+
+This endpoint sends the same notification to every student.
 
 ---
 
-## 7. Broadcast Notification
+### 8. Delete notification
 
-**POST** `/api/v1/notifications/broadcast`
+**DELETE** `/api/notifications/{notificationId}`
 
-### Request
-
-```json
-{
-  "title": "Holiday Notice",
-  "message": "College will remain closed tomorrow.",
-  "notificationType": "Event"
-}
-```
-
-### Response
-
-```json
-{
-  "message": "Notification sent successfully."
-}
-```
+Used only by administrators to remove notifications if required.
 
 ---
 
-## 8. Delete Notification
+## Real-time Notifications
 
-**DELETE** `/api/v1/notifications/{notificationId}`
+For instant delivery, I would use **WebSockets (Socket.IO)**.
 
-### Response
-
-```json
-{
-  "message": "Notification deleted successfully."
-}
-```
+Whenever an administrator creates a notification, it is first stored in the database and then pushed to all connected students through WebSockets. If a student is offline, the notification remains stored in the database and will be displayed the next time they log in.
 
 ---
 
-# Real-Time Notification Mechanism
+# Stage 2
 
-The application will use **WebSockets (Socket.IO)** for instant notification delivery.
+## Database Choice
 
-### Flow
+I would choose **PostgreSQL** for this application because the data is highly structured and relationships between students and notifications are important. PostgreSQL also provides good indexing, reliable transactions, and performs well even when handling large datasets.
 
-1. Student logs in and authenticates using JWT.
-2. Client establishes a WebSocket connection.
-3. Server maps the student's socket connection.
-4. Whenever an admin creates a notification:
-   - Save the notification in the database.
-   - Push it instantly through the WebSocket connection.
-5. If a student is offline, the notification is stored in the database and fetched when they log in later.
+---
+
+## Database Schema
+
+### Students
+
+| Column       | Type        |
+| ------------ | ----------- |
+| studentId    | BIGINT (PK) |
+| name         | VARCHAR     |
+| email        | VARCHAR     |
+| passwordHash | VARCHAR     |
+
+### Notifications
+
+| Column           | Type                            |
+| ---------------- | ------------------------------- |
+| notificationId   | BIGINT (PK)                     |
+| title            | VARCHAR                         |
+| message          | TEXT                            |
+| notificationType | ENUM (Placement, Event, Result) |
+| createdAt        | TIMESTAMP                       |
+
+### StudentNotifications
+
+| Column         | Type        |
+| -------------- | ----------- |
+| id             | BIGINT (PK) |
+| studentId      | BIGINT (FK) |
+| notificationId | BIGINT (FK) |
+| isRead         | BOOLEAN     |
+
+This separate mapping table allows the same notification to be delivered to multiple students while maintaining each student's read status independently.
+
+---
+
+## Challenges as Data Grows
+
+As the number of students and notifications increases, queries may become slower and database storage requirements will increase. Sending notifications to thousands of students simultaneously can also increase server load.
+
+---
+
+## Possible Improvements
+
+* Create indexes on frequently searched columns such as `studentId`, `notificationId`, and `createdAt`.
+* Fetch notifications using pagination instead of loading everything at once.
+* Archive very old notifications.
+* Use Redis to cache frequently accessed data.
+* Use a message queue for sending bulk notifications without blocking the application.
+
+---
+
+## Sample SQL Queries
+
+### Fetch all notifications of a student
+
+```sql
+SELECT n.notificationId,
+       n.title,
+       n.message,
+       n.notificationType,
+       sn.isRead,
+       n.createdAt
+FROM StudentNotifications sn
+JOIN Notifications n
+ON sn.notificationId = n.notificationId
+WHERE sn.studentId = 1042
+ORDER BY n.createdAt DESC;
+```
+
+### Fetch unread notifications
+
+```sql
+SELECT n.*
+FROM StudentNotifications sn
+JOIN Notifications n
+ON sn.notificationId = n.notificationId
+WHERE sn.studentId = 1042
+AND sn.isRead = FALSE;
+```
+
+### Mark a notification as read
+
+```sql
+UPDATE StudentNotifications
+SET isRead = TRUE
+WHERE studentId = 1042
+AND notificationId = 15;
+```
+
+### Create a notification
+
+```sql
+INSERT INTO Notifications
+(title, message, notificationType, createdAt)
+VALUES
+('Placement Update',
+ 'Google hiring for Software Engineer.',
+ 'Placement',
+ NOW());
+```
