@@ -297,3 +297,83 @@ ON sn.notificationId = n.notificationId
 WHERE n.notificationType = 'Placement'
 AND n.createdAt >= NOW() - INTERVAL '7 days';
 ```
+# Stage 4
+
+## Improving Notification Performance
+
+Currently, notifications are fetched from the database every time a student loads a page. As the number of users grows, this creates unnecessary load on the database and increases response time.
+
+### Solution 1: Use Redis Cache
+
+Store recently accessed notifications in Redis. When a student opens the application, the server first checks Redis. If the data is available, it is returned immediately without querying the database.
+
+**Pros**
+
+* Very fast response time
+* Reduces database load
+
+**Cons**
+
+* Extra memory usage
+* Cache invalidation needs to be handled properly
+
+---
+
+### Solution 2: Pagination
+
+Instead of loading every notification, return only a limited number (for example, 20 notifications per request).
+
+**Pros**
+
+* Smaller queries
+* Faster page loading
+* Lower database load
+
+**Cons**
+
+* Requires multiple API calls to load older notifications
+
+---
+
+### Solution 3: Real-Time Notifications
+
+Use WebSockets (Socket.IO) so new notifications are pushed directly to connected users instead of repeatedly requesting them from the server.
+
+**Pros**
+
+* Instant notification delivery
+* Fewer unnecessary API requests
+
+**Cons**
+
+* Requires maintaining active socket connections
+* Slightly higher server memory usage
+
+---
+
+### Solution 4: Database Indexing
+
+Create indexes on commonly searched columns such as `studentId`, `isRead`, and `createdAt`.
+
+**Pros**
+
+* Faster search operations
+* Improved query performance
+
+**Cons**
+
+* Additional storage
+* Slightly slower INSERT and UPDATE operations
+
+---
+
+## Recommended Approach
+
+I would combine:
+
+* Redis for caching
+* WebSockets for real-time delivery
+* Pagination for API responses
+* Proper database indexing
+
+This combination provides good performance while keeping the system scalable as the number of students and notifications increases.
