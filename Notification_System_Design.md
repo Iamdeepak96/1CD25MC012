@@ -377,3 +377,66 @@ I would combine:
 * Proper database indexing
 
 This combination provides good performance while keeping the system scalable as the number of students and notifications increases.
+# Stage 5
+
+## Problems with the Given Approach
+
+The proposed pseudocode sends notifications one student at a time. This approach has several drawbacks:
+
+* Sending emails sequentially is slow for a large number of students.
+* If the process stops midway, some students may never receive the notification.
+* There is no retry mechanism if email delivery fails.
+* The application remains busy until all notifications are processed.
+
+## What if Email Fails for 200 Students?
+
+The failed emails should not be ignored. Instead, they should be added to a retry queue. The system can automatically retry sending those emails after a short delay. If the retries continue to fail, the failures should be logged so that an administrator can investigate.
+
+## Better Design
+
+I would separate the work into two parts:
+
+1. Save all notifications in the database.
+2. Send emails and in-app notifications asynchronously using a message queue (RabbitMQ, Kafka, or a similar queue).
+
+This makes the system faster because the API can respond immediately while background workers handle notification delivery.
+
+## Should Saving to the Database and Sending Emails Happen Together?
+
+No.
+
+Saving the notification and sending emails should be independent operations.
+
+The notification should first be stored successfully in the database. Once stored, a background worker can read the queued tasks and send emails. This ensures that notifications are not lost even if the email service is temporarily unavailable.
+
+## Improved Pseudocode
+
+```text
+function notifyAllStudents(message):
+
+    notificationId = saveNotification(message)
+
+    for each student in studentList:
+        addToQueue(student.id, notificationId)
+
+worker():
+
+    while queue is not empty:
+
+        task = getNextTask()
+
+        saveStudentNotification(task.studentId, task.notificationId)
+
+        try:
+            sendEmail(task.studentId)
+            sendInAppNotification(task.studentId)
+        catch:
+            retry(task)
+```
+
+## Benefits
+
+* Faster response to the user.
+* Reliable delivery using retries.
+* Scales well for thousands of students.
+* Easier to monitor and maintain.
